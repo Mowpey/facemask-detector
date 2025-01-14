@@ -42,6 +42,9 @@ To install the necessary dependencies, you can use pip and a `requirements.txt` 
    ```
 
 3. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
+
+4. To train the model, create a dataset folder in the root directory containing with_mask and without_mask subfolders.
