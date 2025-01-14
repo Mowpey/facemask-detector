@@ -2,7 +2,6 @@ from tensorflow import keras
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from imutils import paths
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -11,8 +10,8 @@ INIT_LR = 1e-4
 EPOCS = 20
 BS = 32
 
-
-DIRECTORY = r"/Users/nijikya/Documents/AI Project/dataset"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY = os.path.join(BASE_DIR, 'dataset')
 CATEGORIES = ["with_mask", "without_mask"]
 
 print("[INFO] loading images...")
