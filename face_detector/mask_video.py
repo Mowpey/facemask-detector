@@ -4,10 +4,12 @@ import numpy as np
 import imutils
 import cv2
 import os
-from playsound import playsound
+import pygame
 import threading
 import time
 
+pygame.mixer.init()
+alarm_sound = pygame.mixer.Sound('alarm.mp3')
 alarm_active = False
 
 def play_alarm():
@@ -15,9 +17,9 @@ def play_alarm():
     
     if not alarm_active:
         alarm_active = True
-        print("Alarm activated")
-        playsound('alarm.mp3')  
+        alarm_sound.play()
         time.sleep(3)  
+        alarm_sound.stop()
         alarm_active = False
 
 def detect_mask(frame,faceNet,maskNet):
@@ -97,7 +99,7 @@ while True:
         cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
 
     if no_mask_detected and not alarm_active:
-        threading.Thread(target=play_alarm(), daemon=True).start()
+        threading.Thread(target=play_alarm, daemon=True).start()
     
     
     cv2.imshow("Frame", frame)
