@@ -4,6 +4,21 @@ import numpy as np
 import imutils
 import cv2
 import os
+from playsound import playsound
+import threading
+import time
+
+alarm_active = False
+
+def play_alarm():
+    global alarm_active
+    
+    if not alarm_active:
+        alarm_active = True
+        print("Alarm activated")
+        playsound('alarm.mp3')  
+        time.sleep(3)  
+        alarm_active = False
 
 def detect_mask(frame,faceNet,maskNet):
 
@@ -63,6 +78,8 @@ while True:
 
     (locs, preds) = detect_mask(frame, faceNet, maskNet)
 
+    no_mask_detected = False
+
     for (box, pred) in zip(locs, preds):
         (startX, startY, endX, endY) = box
         (mask, withoutMask) = pred
@@ -70,12 +87,19 @@ while True:
         label = "Mask" if mask > withoutMask else "No Mask"
         color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
 
+        if label == "No Mask":
+            no_mask_detected = True
+
         label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
 
         cv2.putText(frame, label, (startX, startY - 10),
             cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
         cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
 
+    if no_mask_detected and not alarm_active:
+        threading.Thread(target=play_alarm(), daemon=True).start()
+    
+    
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
 
