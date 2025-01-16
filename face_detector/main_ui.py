@@ -6,6 +6,9 @@ from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.graphics.texture import Texture
 from kivy.core.window import Window
+from kivy.uix.gridlayout import GridLayout
+from kivy.graphics import Color, Rectangle
+from kivy.uix.floatlayout import FloatLayout  # Added for absolute positioning
 from tensorflow import keras
 import numpy as np
 import cv2
@@ -16,15 +19,122 @@ import time
 from math import sqrt
 from datetime import datetime
 
-# Set window background color (#1D1A4E)
+
 Window.clearcolor = (0.114, 0.102, 0.306, 1)
+Window.fullscreen = 'auto'
+class StatsTable(GridLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cols = 2
+        self.spacing = [2, 2]
+        self.padding = [15, 15]
+        
+        # Add background
+        with self.canvas.before:
+            Color(0.16, 0.14, 0.35, 1)  # Slightly lighter than window background
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+        self.bind(size=self._update_rect, pos=self._update_rect)
+        
+        # Style for headers
+        header_style = {
+            'size_hint_y': None,
+            'height': 45,
+            'bold': True,
+            'font_size': '18sp',
+            'color': (1, 1, 1, 1),  # White text
+        }
+        
+        # Style for values
+        value_style = {
+            'size_hint_y': None,
+            'height': 80,
+            'font_size': '32sp',
+            'color': (1, 1, 1, 1),  # White text
+        }
+        
+        # Add headers
+        header1 = Label(text='Metric', **header_style)
+        header2 = Label(text='Value', **header_style)
+        self._add_background(header1, is_header=True)
+        self._add_background(header2, is_header=True)
+        self._add_borders(header1)
+        self._add_borders(header2)
+        self.add_widget(header1)
+        self.add_widget(header2)
+        
+        # Initialize statistics labels
+        stats_data = {
+            'Total Detections': '0',
+            'With Mask': '0',
+            'Without Mask': '0',
+            'Compliance Rate': '0%',
+            'Active Faces': '0',
+            'Session Duration': '00:00'
+        }
+        
+        self.stats = {}
+        for stat_name, initial_value in stats_data.items():
+            name_label = Label(text=stat_name, **value_style)
+            value_label = Label(text=initial_value, **value_style)
+            
+            self._add_background(name_label)
+            self._add_background(value_label)
+            self._add_borders(name_label)
+            self._add_borders(value_label)
+            
+            self.add_widget(name_label)
+            self.add_widget(value_label)
+            self.stats[stat_name] = value_label
+
+    def _add_background(self, widget, is_header=False):
+        with widget.canvas.before:
+            if is_header:
+                Color(0.2, 0.18, 0.4, 1)  # Header background
+            else:
+                Color(0.18, 0.16, 0.37, 1)  # Cell background
+            widget.rect_bg = Rectangle(size=widget.size, pos=widget.pos)
+        widget.bind(size=self._update_widget_bg, pos=self._update_widget_bg)
+
+    def _add_borders(self, widget):
+        with widget.canvas.after:
+            Color(0.3, 0.3, 0.5, 1)  # Border color
+            widget.border_top = Rectangle(pos=widget.pos, size=(widget.width, 1))
+            widget.border_right = Rectangle(pos=(widget.x + widget.width, widget.y), size=(1, widget.height))
+            widget.border_left = Rectangle(pos=(widget.x, widget.y), size=(1, widget.height))
+            widget.border_bottom = Rectangle(pos=(widget.x, widget.y), size=(widget.width, 1))
+        widget.bind(size=self._update_widget_borders, pos=self._update_widget_borders)
+
+    def _update_rect(self, instance, value):
+        self.rect.pos = instance.pos
+        self.rect.size = instance.size
+
+    def _update_widget_bg(self, instance, value):
+        instance.rect_bg.pos = instance.pos
+        instance.rect_bg.size = instance.size
+
+    def _update_widget_borders(self, instance, value):
+        instance.border_top.pos = instance.pos
+        instance.border_top.size = (instance.width, 1)
+        
+        instance.border_right.pos = (instance.x + instance.width - 1, instance.y)
+        instance.border_right.size = (1, instance.height)
+        
+        instance.border_left.pos = (instance.x, instance.y)
+        instance.border_left.size = (1, instance.height)
+        
+        instance.border_bottom.pos = (instance.x, instance.y)
+        instance.border_bottom.size = (instance.width, 1)
 
 class MaskAlert(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.padding = 10
-        self.spacing = 10
+        
+        self.main_container = BoxLayout(
+            orientation='vertical',
+            padding=10,
+            spacing=10,
+            size_hint=(1, 1)
+        )
         
         # Title at the top
         title_label = Label(
@@ -39,7 +149,7 @@ class MaskAlert(BoxLayout):
             orientation='horizontal',
             padding=10,
             spacing=10,
-            size_hint_y=0.8
+            size_hint_y=1
         )
         
         # Analysis constants
@@ -47,20 +157,31 @@ class MaskAlert(BoxLayout):
         self.RESULT_DISPLAY_TIME = 3
         self.MAX_FACE_DISTANCE = 50
         
-        # Left panel
+
+        self.stats_table = StatsTable(
+    size_hint_x=1,    
+    size_hint_y=1,  
+)
+        self.session_start_time = None
+        
+        # Update left panel
         left_panel = BoxLayout(
             orientation='vertical',
             size_hint_x=0.4,
-            spacing=10,
-            padding=10
+            # spacing=10,
+            # padding=10
         )
         
         # Time and date with larger font
         self.time_label = Label(
             text=f'Time: {datetime.now().strftime("%H:%M:%S")}\n'
                  f'Date: {datetime.now().strftime("%B %d, %Y")}',
-            size_hint_y=0.2,
-            font_size='20sp'
+            size_hint=(None, None),
+            size=(200, 50),  # Fixed size
+            pos_hint={'x': 0.01, 'y': 0.01},  # Position at bottom-left
+            font_size='16sp',
+            halign='left',
+            text_size=(200, 50)  # Enable text wrapping
         )
         Clock.schedule_interval(self.update_time, 1)
         
@@ -104,9 +225,8 @@ class MaskAlert(BoxLayout):
         button_layout.add_widget(self.stop_button)
         
         # Add widgets to left panel
-        left_panel.add_widget(self.time_label)
-        left_panel.add_widget(self.mask_count)
-        left_panel.add_widget(self.no_mask_count)
+
+        left_panel.add_widget(self.stats_table)
         left_panel.add_widget(button_layout)
         
         # Right panel (video feed)
@@ -118,15 +238,19 @@ class MaskAlert(BoxLayout):
         
         # Footer label
         footer_label = Label(
-            text='by LGTV',
+            text='@LGTV',
             size_hint_y=0.1,
             font_size='18sp'
         )
         
-        # Add all main sections to the root layout
-        self.add_widget(title_label)
-        self.add_widget(content_layout)
-        self.add_widget(footer_label)
+        # Add all main sections to the container
+        self.main_container.add_widget(title_label)
+        self.main_container.add_widget(content_layout)
+        self.main_container.add_widget(footer_label)
+        
+        # Add main container and time label to the root layout
+        self.add_widget(self.main_container)
+        self.add_widget(self.time_label)
         
         # Initialize mask detection variables
         self.capture = None
@@ -149,21 +273,32 @@ class MaskAlert(BoxLayout):
         
     def update_time(self, dt):
         self.time_label.text = (f'Time: {datetime.now().strftime("%H:%M:%S")}\n'
-                               f'Date: {datetime.now().strftime("%B %d, %Y")}')
+                               f'Date: {datetime.now().strftime("%B %d, %Y")}') 
     
     def start_detection(self, instance):
+        url = "http://192.168.254.100:8080/video"
         if not self.detection_active:
-            self.capture = cv2.VideoCapture(0)
+            self.capture = cv2.VideoCapture(url)
             self.detection_active = True
+            self.session_start_time = time.time()
             Clock.schedule_interval(self.update, 1.0/30.0)
+            Clock.schedule_interval(self.update_session_duration, 1)
     
     def stop_detection(self, instance):
         if self.detection_active:
             self.detection_active = False
             Clock.unschedule(self.update)
+            Clock.unschedule(self.update_session_duration)
             if self.capture:
                 self.capture.release()
             self.capture = None
+            self.session_start_time = None
+    def update_session_duration(self, dt):
+        if self.session_start_time:
+            duration = int(time.time() - self.session_start_time)
+            minutes = duration // 60
+            seconds = duration % 60
+            self.stats_table.stats['Session Duration'].text = f'{minutes:02d}:{seconds:02d}'
     
     def play_alarm(self):
         if not self.alarm_active:
@@ -337,6 +472,15 @@ class MaskAlert(BoxLayout):
             texture = Texture.create(size=(frame.shape[1], frame.shape[0]), colorfmt='rgb')
             texture.blit_buffer(buf.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
             self.image.texture = texture
+
+            total_detections = self.mask_counter + self.no_mask_counter
+            compliance_rate = (self.mask_counter / total_detections * 100) if total_detections > 0 else 0
+        
+            self.stats_table.stats['Total Detections'].text = str(total_detections)
+            self.stats_table.stats['With Mask'].text = str(self.mask_counter) 
+            self.stats_table.stats['Without Mask'].text = str(self.no_mask_counter)
+            self.stats_table.stats['Compliance Rate'].text = f'{compliance_rate:.1f}%'
+            self.stats_table.stats['Active Faces'].text = str(len(current_faces))
 
 class MaskAlertApp(App):
     def build(self):
