@@ -278,7 +278,7 @@ class MaskAlert(BoxLayout):
     def start_detection(self, instance):
         url = "http://192.168.254.100:8080/video"
         if not self.detection_active:
-            self.capture = cv2.VideoCapture(url)
+            self.capture = cv2.VideoCapture(0)
             self.detection_active = True
             self.session_start_time = time.time()
             Clock.schedule_interval(self.update, 1.0/30.0)

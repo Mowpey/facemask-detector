@@ -7,8 +7,8 @@ import numpy as np
 import os
 
 INIT_LR = 1e-4
-EPOCS = 20
-BS = 32
+EPOCS = 30
+BS = 64
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DIRECTORY = os.path.join(BASE_DIR, 'dataset')
